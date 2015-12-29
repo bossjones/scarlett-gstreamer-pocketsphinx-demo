@@ -40,7 +40,6 @@ parse_launch_array = [
                 'audio/x-raw-int, rate=16000, width=16, depth=16, channels=1',
                 'audioresample',
                 'audio/x-raw-int, rate=8000',
-                'vader name=vad auto-threshold=true',
                 'pocketsphinx name=asr',
                 'fakesink dump=1']
 
