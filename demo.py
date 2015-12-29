@@ -31,17 +31,8 @@ bestpath = 0
 # ps_dict = "{}/9812.dic".format(PWD)
 # ps_hmm = "{}/hmm/en_US/hub4wsj_sc_8k".format(PWD)
 
-parse_launch_array = [
-                'alsasrc device=' +
-                ps_device,
-                'queue silent=false leaky=2 max-size-buffers=0 max-size-time=0 max-size-bytes=0',  # noqa
-                'audioconvert',
-                'audioresample',
-                'audio/x-raw-int, rate=16000, width=16, depth=16, channels=1',
-                'audioresample',
-                'audio/x-raw-int, rate=8000',
-                'pocketsphinx name=asr',
-                'fakesink dump=1']
+# old pocketsphinx launch array
+parse_launch_array = __name__.get_a_parse_launch_array()
 
 # Initialize GST
 GObject.threads_init()
@@ -61,30 +52,49 @@ def asr_result(asr, text, uttid):
     """
     print "ASR result", uttid, ":", text
 
-# This sets up our pipeline from pulseaudio (input)
-# through the vader and into pocketsphinx.
-# pipeline = Gst.parse_launch('pulsesrc ! audioconvert ! audioresample '
-#                             + '! vader name=vad auto-threshold=true '
-#                             + '! pocketsphinx name=asr ! fakesink')
-pipeline = Gst.parse_launch(
-    ' ! '.join(parse_launch_array))
 
-# Connect our callbacks to pocketsphinx
-asr = pipeline.get_by_name('asr')
-asr.connect('partial_result', asr_partial_result)
-asr.connect('result', asr_result)
+def get_a_parse_launch_array(legacy=False):
+    if legacy:
+        return ['alsasrc device=' +
+               ps_device,
+               'queue silent=false leaky=2 max-size-buffers=0 max-size-time=0 max-size-bytes=0',  # noqa
+               'audioconvert',
+               'audioresample',
+               'audio/x-raw-int, rate=16000, width=16, depth=16, channels=1',
+               'audioresample',
+               'audio/x-raw-int, rate=8000',
+               'pocketsphinx name=asr',
+               'fakesink dump=1']
+    return ['pulsesrc ! audioconvert ! audioresample '
+            + '! vader name=vad auto-threshold=true '
+            + '! pocketsphinx name=asr ! fakesink']
 
-# Optional: set the language model and dictionary.
-if LM_PATH and DICT_PATH:
-    asr.set_property('lm', LM_PATH)
-    asr.set_property('dict', DICT_PATH)
-    asr.set_property('hmm', DICT_PATH)
 
-# Now tell gstreamer and pocketsphinx to start converting speech!
-asr.set_property('configured', True)
-pipeline.set_state(Gst.State.PLAYING)
+if __name__ == '__main__':
+    # This sets up our pipeline from pulseaudio (input)
+    # through the vader and into pocketsphinx.
+    # pipeline = Gst.parse_launch('pulsesrc ! audioconvert ! audioresample '
+    #                             + '! vader name=vad auto-threshold=true '
+    #                             + '! pocketsphinx name=asr ! fakesink')
+    pipeline = Gst.parse_launch(
+        ' ! '.join(parse_launch_array))
 
-# This loops the program until Ctrl+C is pressed
-g_loop = threading.Thread(target=GObject.MainLoop().run)
-g_loop.daemon = False
-g_loop.start()
+    # Connect our callbacks to pocketsphinx
+    asr = pipeline.get_by_name('asr')
+    asr.connect('partial_result', asr_partial_result)
+    asr.connect('result', asr_result)
+
+    # Optional: set the language model and dictionary.
+    if LM_PATH and DICT_PATH:
+        asr.set_property('lm', LM_PATH)
+        asr.set_property('dict', DICT_PATH)
+        asr.set_property('hmm', DICT_PATH)
+
+    # Now tell gstreamer and pocketsphinx to start converting speech!
+    asr.set_property('configured', True)
+    pipeline.set_state(Gst.State.PLAYING)
+
+    # This loops the program until Ctrl+C is pressed
+    g_loop = threading.Thread(target=GObject.MainLoop().run)
+    g_loop.daemon = False
+    g_loop.start()
