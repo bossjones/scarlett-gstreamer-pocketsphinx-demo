@@ -112,21 +112,7 @@ global logger
 logger = setup_logger()
 
 
-def asr_partial_result(asr, text, uttid):
-    """ This function is called when pocketsphinx gets a partial
-        transcription of spoken audio.
-    """
-    print "ASR partial", uttid, ":", text
-
-
-def asr_result(asr, text, uttid):
-    """ This function is called when pocketsphinx gets a
-        full result (spoken command with a pause)
-    """
-    print "ASR result", uttid, ":", text
-
-
-def asr_element_message(asr, bus, msg):
+def element_message(self, bus, msg):
     """Receive element messages from the bus."""
     logger.debug("msg: " + msg)
     logger.debug("msg.get_structure(): " + msg.get_structure())
@@ -162,7 +148,7 @@ pipeline = Gst.parse_launch(
 
 bus = pipeline.get_bus()
 bus.add_signal_watch()
-bus.connect('message::element', asr_element_message)
+bus.connect('message::element', element_message)
 pipeline.set_state(gst.State.PAUSED)
 
 # Connect our callbacks to pocketsphinx
