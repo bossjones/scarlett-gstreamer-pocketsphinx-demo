@@ -1,6 +1,9 @@
 # scarlett-gstreamer-pocketsphinx-demo
 Basic demo to make sure all gstreamer + pocketsphinx dependencies were installed correctly, and STT works w/ pocketphinx gst plugin for scarlett
 
+# if recording isnt working
+http://askubuntu.com/questions/61289/how-to-verify-if-my-microphone-input-is-dead-or-ubuntu-not-detected-it-yet-i-ca
+http://www.linux.org/threads/beats-audio-on-linux.4443/
 
 # IMPORTANT NOTE:
 Currently assumes `hmm` folder is located at `./hmm` FYI. Will need to figure out if this is still required in newer versions of pocketpshinx or not.
@@ -285,3 +288,6 @@ Element Properties:
                         Boolean. Default: true
 ```
 
+
+# commandline test
+pocketsphinx_continuous -hmm /home/pi/.virtualenvs/scarlett-dbus-poc/share/pocketsphinx/model/en-us/en-us -lm 1602.lm -dict 1602.dic -samprate 16000/8000/48000 -inmic yes

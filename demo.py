@@ -160,7 +160,7 @@ asr = pipeline.get_by_name('asr')
 if LM_PATH and DICT_PATH:
     asr.set_property('lm', LM_PATH)
     asr.set_property('dict', DICT_PATH)
-    asr.set_property('hmm', DICT_PATH)
+    asr.set_property('hmm', HMM_PATH)
 
 # Now tell gstreamer and pocketsphinx to start converting speech!
 asr.set_property('configured', True)
