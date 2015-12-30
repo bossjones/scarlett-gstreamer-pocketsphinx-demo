@@ -46,9 +46,15 @@ if use_legacy_parse_launch:
            'pocketsphinx name=asr',
            'fakesink dump=1']
 else:
-    parse_launch_array = ['pulsesrc ! audioconvert ! audioresample '
-                          + '! vader name=vad auto-threshold=true '
-                          + '! pocketsphinx name=asr ! fakesink']
+    # # source:
+    # # https://github.com/smartin015/gstreamer_pocketsphinx_demo/blob/master/demo.py
+    # parse_launch_array = ['pulsesrc ! audioconvert ! audioresample '
+    #                       + '! vader name=vad auto-threshold=true '
+    #                       + '! pocketsphinx name=asr ! fakesink']
+
+    # source: pocketsphinx upstream
+    parse_launch_array = ['autoaudiosrc ! audioconvert ! audioresample '
+                      + '! pocketsphinx name=asr ! fakesink']
 
 # Initialize GST
 GObject.threads_init()
