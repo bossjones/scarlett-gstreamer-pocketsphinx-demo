@@ -167,8 +167,8 @@ pipeline.set_state(gst.State.PAUSED)
 
 # Connect our callbacks to pocketsphinx
 asr = pipeline.get_by_name('asr')
-asr.connect('partial_result', asr_partial_result)
-asr.connect('result', asr_result)
+# asr.connect('partial_result', asr_partial_result)
+# asr.connect('result', asr_result)
 
 # Optional: set the language model and dictionary.
 if LM_PATH and DICT_PATH:
