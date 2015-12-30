@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-
+# -*- coding: UTF-8 -*-
 import sys
 import os
 
@@ -14,6 +14,51 @@ import gi
 gi.require_version('Gst', '1.0')
 from gi.repository import GObject, Gst
 import threading
+
+from IPython.core.debugger import Tracer
+from IPython.core import ultratb
+
+sys.excepthook = ultratb.FormattedTB(mode='Verbose',
+                                     color_scheme='Linux',
+                                     call_pdb=True,
+                                     ostream=sys.__stdout__)
+
+from colorlog import ColoredFormatter
+
+import logging
+
+
+def setup_logger():
+    """Return a logger with a default ColoredFormatter."""
+    formatter = ColoredFormatter(
+        "(%(threadName)-9s) %(log_color)s%(levelname)-8s%(reset)s %(message_log_color)s%(message)s",
+        datefmt=None,
+        reset=True,
+        log_colors={
+            'DEBUG':    'cyan',
+            'INFO':     'green',
+            'WARNING':  'yellow',
+            'ERROR':    'red',
+            'CRITICAL': 'red',
+        },
+        secondary_log_colors={
+            'message': {
+                'ERROR':    'red',
+                'CRITICAL': 'red',
+                'DEBUG': 'yellow'
+            }
+        },
+        style='%'
+    )
+
+    logger = logging.getLogger(__name__)
+    handler = logging.StreamHandler()
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    logger.setLevel(logging.DEBUG)
+
+    return logger
+
 
 # Here's where you edit the vocabulary.
 # Point these variables to your *.lm and *.dic files. A default exists,
@@ -46,19 +91,25 @@ if use_legacy_parse_launch:
            'pocketsphinx name=asr',
            'fakesink dump=1']
 else:
-    # # source:
-    # # https://github.com/smartin015/gstreamer_pocketsphinx_demo/blob/master/demo.py
+    # source:
+    # https://github.com/smartin015/gstreamer_pocketsphinx_demo/blob/master/demo.py
     # parse_launch_array = ['pulsesrc ! audioconvert ! audioresample '
     #                       + '! vader name=vad auto-threshold=true '
     #                       + '! pocketsphinx name=asr ! fakesink']
 
     # source: pocketsphinx upstream
+    # http://webcache.googleusercontent.com/search?q=cache:W7uIWyLxLDAJ:cmusphinx.sourceforge.net/wiki/gstreamer+&cd=2&hl=en&ct=clnk&gl=us
     parse_launch_array = ['autoaudiosrc ! audioconvert ! audioresample '
-                      + '! pocketsphinx name=asr ! fakesink']
+                          + '! pocketsphinx name=asr ! fakesink']
 
 # Initialize GST
 GObject.threads_init()
 Gst.init(None)
+
+gst = Gst
+
+global logger
+logger = setup_logger()
 
 
 def asr_partial_result(asr, text, uttid):
@@ -74,6 +125,42 @@ def asr_result(asr, text, uttid):
     """
     print "ASR result", uttid, ":", text
 
+
+def asr_element_message(asr, bus, msg):
+    """Receive element messages from the bus."""
+    msgtype = msg.get_structure().get_name()
+    if msgtype != 'pocketsphinx':
+        return
+
+    if msg.get_structure()['final']:
+        asr.final_result(msg.get_structure()['hypothesis'],
+                         msg.get_structure()['confidence'])
+        asr.pipeline.set_state(gst.State.PAUSED)
+    elif msg.get_structure()['hypothesis']:
+        asr.partial_result(msg.get_structure()['hypothesis'])
+
+
+def partial_result(asr, hyp):
+    """Delete any previous selection, insert text and select it."""
+    # All this stuff appears as one single action
+    asr.textbuf.begin_user_action()
+    asr.textbuf.delete_selection(True, asr.text.get_editable())
+    asr.textbuf.insert_at_cursor(hyp)
+    ins = asr.textbuf.get_insert()
+    iter = asr.textbuf.get_iter_at_mark(ins)
+    iter.backward_chars(len(hyp))
+    asr.textbuf.move_mark(ins, iter)
+    asr.textbuf.end_user_action()
+
+
+def final_result(asr, hyp, confidence):
+    """Insert the final result."""
+    # All this stuff appears as one single action
+    asr.textbuf.begin_user_action()
+    asr.textbuf.delete_selection(True, asr.text.get_editable())
+    asr.textbuf.insert_at_cursor(hyp)
+    asr.textbuf.end_user_action()
+
 # This sets up our pipeline from pulseaudio (input)
 # through the vader and into pocketsphinx.
 # pipeline = Gst.parse_launch('pulsesrc ! audioconvert ! audioresample '
@@ -81,6 +168,11 @@ def asr_result(asr, text, uttid):
 #                             + '! pocketsphinx name=asr ! fakesink')
 pipeline = Gst.parse_launch(
     ' ! '.join(parse_launch_array))
+
+bus = pipeline.get_bus()
+bus.add_signal_watch()
+bus.connect('message::element', asr_element_message)
+pipeline.set_state(gst.State.PAUSED)
 
 # Connect our callbacks to pocketsphinx
 asr = pipeline.get_by_name('asr')
