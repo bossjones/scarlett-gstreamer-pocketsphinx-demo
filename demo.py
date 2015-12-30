@@ -12,7 +12,7 @@ print PWD
 
 import gi
 gi.require_version('Gst', '1.0')
-from gi.repository import GObject, Gst
+from gi.repository import GObject, Gst, GLib
 import threading
 
 from IPython.core.debugger import Tracer
@@ -181,6 +181,6 @@ asr.set_property('configured', True)
 pipeline.set_state(Gst.State.PLAYING)
 
 # This loops the program until Ctrl+C is pressed
-g_loop = threading.Thread(target=GObject.MainLoop().run)
+g_loop = threading.Thread(target=GLib.MainLoop().run)
 g_loop.daemon = False
 g_loop.start()
