@@ -128,6 +128,8 @@ def asr_result(asr, text, uttid):
 
 def asr_element_message(asr, bus, msg):
     """Receive element messages from the bus."""
+    logger.debug("msg: " + msg)
+    logger.debug("msg.get_structure(): " + msg.get_structure())
     msgtype = msg.get_structure().get_name()
     if msgtype != 'pocketsphinx':
         return
@@ -142,24 +144,13 @@ def asr_element_message(asr, bus, msg):
 
 def partial_result(asr, hyp):
     """Delete any previous selection, insert text and select it."""
-    # All this stuff appears as one single action
-    asr.textbuf.begin_user_action()
-    asr.textbuf.delete_selection(True, asr.text.get_editable())
-    asr.textbuf.insert_at_cursor(hyp)
-    ins = asr.textbuf.get_insert()
-    iter = asr.textbuf.get_iter_at_mark(ins)
-    iter.backward_chars(len(hyp))
-    asr.textbuf.move_mark(ins, iter)
-    asr.textbuf.end_user_action()
+    logger.debug("hyp: " + hyp)
 
 
 def final_result(asr, hyp, confidence):
     """Insert the final result."""
-    # All this stuff appears as one single action
-    asr.textbuf.begin_user_action()
-    asr.textbuf.delete_selection(True, asr.text.get_editable())
-    asr.textbuf.insert_at_cursor(hyp)
-    asr.textbuf.end_user_action()
+    logger.debug("hyp: " + hyp)
+    logger.debug("confidence: " + confidence)
 
 # This sets up our pipeline from pulseaudio (input)
 # through the vader and into pocketsphinx.
