@@ -2,6 +2,7 @@
 # -*- coding: UTF-8 -*-
 import sys
 import os
+import argparse
 
 # insert path so we can access things w/o having to re-install everything
 # sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
@@ -14,6 +15,9 @@ import gi
 gi.require_version('Gst', '1.0')
 from gi.repository import GObject, Gst, GLib
 import threading
+
+GObject.threads_init()
+Gst.init(None)
 
 print '********************************************************'
 print GObject.pygobject_version
@@ -33,6 +37,61 @@ sys.excepthook = ultratb.FormattedTB(mode='Verbose',
 from colorlog import ColoredFormatter
 
 import logging
+
+gst = Gst
+
+
+def get_pocketsphinx_definition(device, hmm, lm, dic):
+    return ['alsasrc device=' +
+            device,
+            'queue silent=false leaky=2 max-size-buffers=0 max-size-time=0 max-size-bytes=0',
+            'audioconvert',
+            'audioresample',
+            'audio/x-raw,format=S16LE,channels=1,layout=interleaved',
+            'pocketsphinx name=asr bestpath=0',
+            'queue leaky=2',
+            'fakesink']
+
+
+def run_pipeline(device=None, hmm=None, lm=None, dict=None):
+    pipeline = Gst.parse_launch(' ! '.join(
+                                get_pocketsphinx_definition(device,
+                                                            hmm,
+                                                            lm,
+                                                            dict)))
+
+    pocketsphinx = pipeline.get_by_name('asr')
+    if hmm:
+        pocketsphinx.set_property('hmm', hmm)
+    if lm:
+        pocketsphinx.set_property('lm', lm)
+    if dict:
+        pocketsphinx.set_property('dict', dict)
+
+    bus = pipeline.get_bus()
+
+    # Start playing
+    pipeline.set_state(Gst.State.PLAYING)
+
+    # Wait until error or EOS
+    while True:
+        try:
+            msg = bus.timed_pop(Gst.CLOCK_TIME_NONE)
+            if msg:
+                # if msg.get_structure():
+                #    print(msg.get_structure().to_string())
+
+                if msg.type == Gst.MessageType.EOS:
+                    break
+                struct = msg.get_structure()
+                if struct and struct.get_name() == 'pocketsphinx':
+                    if struct['final']:
+                        logger.info(struct['hypothesis'])
+        except KeyboardInterrupt:
+            pipeline.send_event(Gst.Event.new_eos())
+
+    # Free resources
+    pipeline.set_state(Gst.State.NULL)
 
 
 def setup_logger():
@@ -66,118 +125,32 @@ def setup_logger():
 
     return logger
 
+if __name__ == '__main__':
+    global logger
+    logger = setup_logger()
+    LANGUAGE_VERSION = 1473
+    HOMEDIR = "/home/pi"
+    LANGUAGE_FILE_HOME = "{}/dev/bossjones-github/scarlett-gstreamer-pocketsphinx-demo".format(
+        HOMEDIR)
+    LM_PATH = "{}/{}.lm".format(LANGUAGE_FILE_HOME, LANGUAGE_VERSION)
+    DICT_PATH = "{}/{}.dic".format(LANGUAGE_FILE_HOME, LANGUAGE_VERSION)
+    HMM_PATH = "{}/.virtualenvs/scarlett-dbus-poc/share/pocketsphinx/model/en-us/en-us".format(
+        HOMEDIR)
+    bestpath = 0
+    PS_DEVICE = 'plughw:CARD=Device,DEV=0'
 
-# Here's where you edit the vocabulary.
-# Point these variables to your *.lm and *.dic files. A default exists,
-# but new models can be created for better accuracy. See instructions at:
-# http://cmusphinx.sourceforge.net/wiki/tutoriallm
-LANGUAGE_VERSION = 1473
-LM_PATH = "{}/{}.lm".format(PWD, LANGUAGE_VERSION)
-DICT_PATH = "{}/{}.dic".format(PWD, LANGUAGE_VERSION)
-HMM_PATH = "{}/hmm/en_US/hub4wsj_sc_8k".format(PWD)
-ps_device = 'hw:1'
-silprob = 0.1
-wip = 1e-4
-bestpath = 0
-
-# ps_lm = "{}/1602.lm".format(PWD)
-# ps_dict = "{}/9812.dic".format(PWD)
-# ps_hmm = "{}/hmm/en_US/hub4wsj_sc_8k".format(PWD)
-
-# old pocketsphinx launch array
-use_legacy_parse_launch = False
-
-if use_legacy_parse_launch:
-    parse_launch_array = ['alsasrc device=' +
-           ps_device,
-           'queue silent=false leaky=2 max-size-buffers=0 max-size-time=0 max-size-bytes=0',  # noqa
-           'audioconvert',
-           'audioresample',
-           'audio/x-raw-int, rate=16000, width=16, depth=16, channels=1',
-           'audioresample',
-           'audio/x-raw-int, rate=8000',
-           'pocketsphinx name=asr',
-           'fakesink dump=1']
-else:
-    # source:
-    # https://github.com/smartin015/gstreamer_pocketsphinx_demo/blob/master/demo.py
-    # parse_launch_array = ['pulsesrc ! audioconvert ! audioresample '
-    #                       + '! vader name=vad auto-threshold=true '
-    #                       + '! pocketsphinx name=asr ! fakesink']
-
-    # source: pocketsphinx upstream
-    # http://webcache.googleusercontent.com/search?q=cache:W7uIWyLxLDAJ:cmusphinx.sourceforge.net/wiki/gstreamer+&cd=2&hl=en&ct=clnk&gl=us
-    parse_launch_array = ['autoaudiosrc ! audioconvert ! audioresample '
-                          + '! pocketsphinx name=asr ! fakesink']
-
-# Initialize GST
-# NOTE: Not needed since we're using
-# In [5]: GObject.pygobject_version
-# Out[5]: (3, 12, 0)
-# GObject.threads_init()
-# Gst.init(None)
-
-gst = Gst
-
-global logger
-logger = setup_logger()
-
-
-def element_message(self, bus, msg):
-    """Receive element messages from the bus."""
-    logger.debug("msg: " + msg)
-    logger.debug("msg.get_structure(): " + msg.get_structure())
-    msgtype = msg.get_structure().get_name()
-    if msgtype != 'pocketsphinx':
-        return
-
-    if msg.get_structure()['final']:
-        asr.final_result(msg.get_structure()['hypothesis'],
-                         msg.get_structure()['confidence'])
-        asr.pipeline.set_state(gst.State.PAUSED)
-    elif msg.get_structure()['hypothesis']:
-        asr.partial_result(msg.get_structure()['hypothesis'])
-
-
-def partial_result(asr, hyp):
-    """Delete any previous selection, insert text and select it."""
-    logger.debug("hyp: " + hyp)
-
-
-def final_result(asr, hyp, confidence):
-    """Insert the final result."""
-    logger.debug("hyp: " + hyp)
-    logger.debug("confidence: " + confidence)
-
-# This sets up our pipeline from pulseaudio (input)
-# through the vader and into pocketsphinx.
-# pipeline = Gst.parse_launch('pulsesrc ! audioconvert ! audioresample '
-#                             + '! vader name=vad auto-threshold=true '
-#                             + '! pocketsphinx name=asr ! fakesink')
-pipeline = Gst.parse_launch(
-    ' ! '.join(parse_launch_array))
-
-bus = pipeline.get_bus()
-bus.add_signal_watch()
-bus.connect('message::element', element_message)
-pipeline.set_state(gst.State.PAUSED)
-
-# Connect our callbacks to pocketsphinx
-asr = pipeline.get_by_name('asr')
-# asr.connect('partial_result', asr_partial_result)
-# asr.connect('result', asr_result)
-
-# Optional: set the language model and dictionary.
-if LM_PATH and DICT_PATH:
-    asr.set_property('lm', LM_PATH)
-    asr.set_property('dict', DICT_PATH)
-    asr.set_property('hmm', HMM_PATH)
-
-# Now tell gstreamer and pocketsphinx to start converting speech!
-asr.set_property('configured', True)
-pipeline.set_state(Gst.State.PLAYING)
-
-# This loops the program until Ctrl+C is pressed
-g_loop = threading.Thread(target=GLib.MainLoop().run)
-g_loop.daemon = False
-g_loop.start()
+    parser = argparse.ArgumentParser(description='Recognize speech from audio')
+    parser.add_argument('--device',
+                        default=PS_DEVICE,
+                        help='Pocketsphinx audio source device')
+    parser.add_argument('--hmm',
+                        default=HMM_PATH,
+                        help='Path to a pocketsphinx HMM data directory')
+    parser.add_argument('--lm',
+                        default=LM_PATH,
+                        help='Path to a pocketsphinx language model file')
+    parser.add_argument('--dict',
+                        default=DICT_PATH,
+                        help='Path to a pocketsphinx CMU dictionary file')
+    args = parser.parse_args()
+    run_pipeline(**vars(args))
