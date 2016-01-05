@@ -15,6 +15,13 @@ gi.require_version('Gst', '1.0')
 from gi.repository import GObject, Gst, GLib
 import threading
 
+print '********************************************************'
+print GObject.pygobject_version
+print '********************************************************'
+
+Gst.debug_set_active(True)
+Gst.debug_set_default_threshold(3)
+
 from IPython.core.debugger import Tracer
 from IPython.core import ultratb
 
@@ -64,8 +71,9 @@ def setup_logger():
 # Point these variables to your *.lm and *.dic files. A default exists,
 # but new models can be created for better accuracy. See instructions at:
 # http://cmusphinx.sourceforge.net/wiki/tutoriallm
-LM_PATH = "{}/1602.lm".format(PWD)
-DICT_PATH = "{}/9812.dic".format(PWD)
+LANGUAGE_VERSION = 1473
+LM_PATH = "{}/{}.lm".format(PWD, LANGUAGE_VERSION)
+DICT_PATH = "{}/{}.dic".format(PWD, LANGUAGE_VERSION)
 HMM_PATH = "{}/hmm/en_US/hub4wsj_sc_8k".format(PWD)
 ps_device = 'hw:1'
 silprob = 0.1
@@ -103,8 +111,11 @@ else:
                           + '! pocketsphinx name=asr ! fakesink']
 
 # Initialize GST
-GObject.threads_init()
-Gst.init(None)
+# NOTE: Not needed since we're using
+# In [5]: GObject.pygobject_version
+# Out[5]: (3, 12, 0)
+# GObject.threads_init()
+# Gst.init(None)
 
 gst = Gst
 
